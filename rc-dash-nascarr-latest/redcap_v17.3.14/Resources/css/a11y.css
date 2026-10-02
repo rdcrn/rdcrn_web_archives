@@ -1,0 +1,41 @@
+/*
+  In this file, we can target specific elements that are used in REDCap and apply styles to them to improve accessibility.
+  For example, we can target buttons and links to ensure they have sufficient color contrast and are easily distinguishable from other elements on the page.
+  This sort of piecemeal targeting is necessary because many elements in REDCap have custom styles applied, and therefore all-encompassing style changes for accessibility may not always be successful when applied in the styles.css file.
+ * */
+
+/* WCAG 2.1 § 2.4.7 – Visible keyboard focus indicators
+ * */
+:is(
+	.btn.btn-rcgreen
+):focus {
+    outline: none;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--color-rc-royalblue) !important;
+}
+
+:is(
+	.btn.btn-rcgreen
+):hover {
+    outline: color-mix(in srgb, currentColor 50%, black 50%) solid 1px !important;
+    outline-offset: 0;
+    box-shadow: none !important;
+}
+
+/* Windows High Contrast Mode. */
+@media (forced-colors: active) {
+    :is(
+		.btn.btn-rcgreen
+	):focus {
+        outline: 3px solid Highlight !important;
+        outline-offset: 2px;
+        box-shadow: none !important;
+    }
+
+    :is(
+		.btn.btn-rcgreen
+	):hover {
+        outline: 2px solid ButtonText !important;
+        outline-offset: 0;
+        box-shadow: none !important;
+    }
+}
