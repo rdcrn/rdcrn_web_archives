@@ -652,236 +652,11 @@ margin-left:2.5%;
       <div class="content">
       
 <div id="googleMap" style="width:100%;height:500px;" class="mb-5"></div>
-<script><!--
-  async function buildMap() {
-    let mapProp = {
-      center: new google.maps.LatLng(37.09024, -95.712891),
-      zoom: 5,
-      disableDefaultUI: true
-    };
-    let map = new google.maps.Map(document.getElementById("googleMap"), mapProp);
-
-    let star = "m 23.595218,13.65816 c -0.0584,0.0517 -0.122546,0.09861 -0.192758,0.138822 l -3.198063,1.846209 1.677338,3.802465 c 0.03701,0.09064 0.05521,0.176486 0.06414,0.260093 0.09319,0.325837 0.146168,0.668583 0.146168,1.024413 0,2.051026 -1.662962,3.714066 -3.71407,3.714066 -1.049653,0 -1.996205,-0.437212 -2.671115,-1.137396 -0.02491,-0.0185 -0.0517,-0.03255 -0.07531,-0.0533 l -2.821439,-2.45445 -2.8214358,2.45445 c -0.029667,0.02585 -0.063189,0.04436 -0.094459,0.06702 -0.6746476,0.692522 -1.6157417,1.124 -2.6593487,1.124 -2.051029,0 -3.7140699,-1.662962 -3.7140699,-3.714069 0,-0.35041 0.063826,-0.683264 0.1547751,-1.004965 0.00337,-0.10276 0.020115,-0.209352 0.067017,-0.322961 L 5.4113522,15.619862 2.2544598,13.797593 c -7.492e-4,-3.3e-4 -0.00112,-7.5e-4 -0.0015,-0.0011 -1.1782481,-0.622947 -1.98182806,-1.858953 -1.98182806,-3.284177 0,-2.0513507 1.66296196,-3.7140655 3.71406986,-3.7140655 0.033188,0 0.064466,0.007 0.097655,0.00798 0.031278,-0.00262 0.061911,-0.00925 0.094141,-0.00925 h 3.927546 L 9.2492935,2.9121323 c 0.023299,-0.086803 0.057765,-0.1669079 0.097973,-0.2425442 0.5386992,-1.3866564 1.8825665,-2.37087276 3.4597445,-2.37087276 1.582568,0 2.929931,0.99123986 3.465135,2.38517066 0.03671,0.071486 0.06734,0.1474407 0.08872,0.2281826 l 1.144749,3.8848169 3.956306,3.297e-4 c 0.02712,0 0.05297,0.00607 0.07978,0.00798 0.02937,-7.491e-4 0.05712,-0.0067 0.0868,-0.0067 2.051025,0 3.71407,1.6629619 3.71407,3.7140688 -3.26e-4,1.327262 -0.699539,2.489253 -1.747274,3.145696 z";
-
-    const markerIcon = (site) => {
-      const highlightAdminSite = ("yes" === "yes");
-      const highlight = highlightAdminSite && site.is_admin_core;
-      return {
-        path: star,
-        fillColor: (highlight ? '#ffee00' : '#404040'),
-        fillOpacity: 1,
-        strokeColor: (highlight ? '#404040' : 'white'),
-        strokeWeight: (highlight ? 1 : .10),
-        scale: 1,
-        anchor: new google.maps.Point(15, 15),
-      }
-    }
-
-    const SLEEP_TIME = 75;
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-    let bounds = new google.maps.LatLngBounds();
-
-    let sites = await getConsortiaSites();
-
-    // admin sites drop first, set z-index later to ensure marker is in front
-    sites.sort((s1, s2) => s2.is_admin_core - s1.is_admin_core);
-
-    const geocodedSites = sites.filter(cs => isGeocoded(cs));
-    const sitesToGeocode = sites.filter(cs => !isGeocoded(cs));
-
-    // Start geocoding any consortiumsites that are missing valid long/lats
-    const geocodePromises = geocodeSites(sitesToGeocode);
-
-    // Now map the sites that have pre-stored geocodes
-    for (const cs of geocodedSites) {
-      await addSiteMarker(map, bounds, markerIcon(cs), cs);
-      await sleep(SLEEP_TIME);
-    };
-
-    // Finally start mapping the sites that needed geocoding
-    for (const promise of geocodePromises) {
-      promise.then(cs => {
-        addSiteMarker(map, bounds, markerIcon(cs), cs);
-        console.log(`${cs.site.name}: lat/lng was invalid or missing, location was fetched from geocoding service`);
-      });
-      await sleep(SLEEP_TIME);
-    }
-    await Promise.allSettled(geocodePromises);
-
-    if (!bounds.equals(new google.maps.LatLngBounds())) {
-      map.fitBounds(bounds);
-    }
-
-    /**
-     * Returns list of all consortiaSites
-     */
-    async function getConsortiaSites() {
-      const response = await fetch('ext/wwwapi.rarediseasesnetwork.org/api/v1/consortia-CPIC.json');
-      const responseJson = await response.json();
-      return responseJson.results[0].sites;
-    }
-
-    /**
-     * Whether a site is already geocoded
-     */
-    function isGeocoded(site) {
-      return site.longitude && site.latitude && !(isNaN(site.longitude) || isNaN(site.latitude)) ;
-    }
-
-    /**
-     * Return an array of promises to geocode sites, throttled to avoid "too many request" errors
-     */
-    function geocodeSites(sites) {
-      // delay to avoid triggering google maps geocoding throttle error
-      const GEO_SLEEP_TIME = 600;
-      const geopromises = [];
-      let prevPromise = Promise.resolve();
-      let delay = false;
-
-      for (const site of sites) {
-        const promise = prevPromise.then(async () => {
-          if (delay) {
-            await sleep(GEO_SLEEP_TIME);
-          }
-          const latlng = await geocode(site.site.name, site.address, site.city, site.state, site.zipcode);
-          return { ...site, longitude: latlng.lng(), latitude: latlng.lat() };
-        });
-        geopromises.push(promise);
-        prevPromise = promise;
-        delay = true;
-      }
-
-      return geopromises;
-    }
-
-    /**
-     * Adds a new site marker to the map
-     * @param map
-     * @param bounds
-     * @param markerIcon
-     * @param siteName
-     * @param address
-     * @param city
-     * @param state
-     * @param zipcode
-     * @param siteStudies[] - array of siteStudies
-     */
-    async function addSiteMarker(map, bounds, markerIcon, consortiumSite) {
-      const geolocation = {lat: parseFloat(consortiumSite.latitude), lng: parseFloat(consortiumSite.longitude)};
-
-      // give admin core sites the highest z-index
-      let zindex;
-      if (consortiumSite.is_admin_core) {
-        zindex = google.maps.Marker.MAX_ZINDEX + 1;
-      }
-      var marker = new google.maps.Marker({
-        position: geolocation,
-        map: map,
-        icon: markerIcon,
-        animation: google.maps.Animation.DROP,
-        anchor: new google.maps.Point(0.5, 0.5),
-        zIndex: zindex,
-      });
-      bounds.extend(geolocation);
-
-      infoWindow(map, marker, consortiumSite.site.name, consortiumSite.studies);
-    }
-
-    /**
-     * Function to get geocode (lat/long) for address criteria.
-     * @param siteName
-     * @param address
-     * @param city
-     * @param state
-     * @param zipcode
-     * @param studies[]
-     * @param searchType - support retrying geocoding if no results...but with less specific criteria
-     * @param attempts - number of attempts
-     */
-    async function geocode(siteName, address, city, state, zipcode, searchType = 0, attempts = 0) {
-      const MAX_GEOCODE_ATTEMPTS = 10;
-
-      attempts++;
-      let promise = new Promise((resolve, reject) => {
-        let search = "";
-        if (searchType <= 0 && address && city && state && zipcode) {
-          search = `${address}, ${city}, ${state} ${zipcode}`;
-          searchType = 1;
-        } else if (searchType <= 1 && city && state && zipcode) {
-          search = `${city}, ${state} ${zipcode}`;
-          searchType = 2;
-        } else if (searchType <= 2 && zipcode) {
-          search = `${zipcode}`;
-          searchType = 3;
-        } else if (searchType <= 3 && city && state) {
-          search = `${city}, ${state}`;
-          searchType = 4;
-        } else {
-          resolve(null);
-          return;
-        }
-
-        //console.debug(`Attempting [${attempts}] for site [${siteName}] criteria [${search}]`);
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({
-          'address': search
-        }, async function(results, status) {
-          if (status == "ZERO_RESULTS" && searchType < 4) {
-            // console.debug(`[${new Date().toISOString()}] Retrying site [${siteName}], attempt [${attempts}], search type [${searchType}] : ${status}`);
-            await sleep(SLEEP_TIME); // avoid OVER_QUERY_LIMIT response from google maps
-            resolve(await geocode(siteName, address, city, state, zipcode, searchType, attempts));
-          } else if (status == "OVER_QUERY_LIMIT" && attempts < MAX_GEOCODE_ATTEMPTS) {
-            // console.debug(`[${new Date().toISOString()}] Retrying site [${siteName}], attempt [${attempts}], search type [${searchType}] : ${status}`);
-            await sleep(SLEEP_TIME * attempts + 1000); // avoid OVER_QUERY_LIMIT response from google maps
-            resolve(await geocode(siteName, address, city, state, zipcode, --searchType, attempts));
-          } else if (status == "OK") {
-            //console.debug(`Found position for site [${siteName}] : ${results[0].geometry.location.lat()}, ${results[0].geometry.location.lng()}]`);
-            resolve(results[0].geometry.location);
-          } else {
-            // console.debug(`[${new Date().toISOString()}] Failed geocoding for site [${siteName}].  Status: [${status}], Criteria: [${search}]`);
-            resolve(null);
-          }
-        });
-      });
-      return await promise;
-    }
-
-    /**
-     * Adds the info window (tooltip) to the map marker
-     * @param map - the map
-     * @param marker - the map marker
-     * @param siteName - site name to display in tooltip
-     * @param siteStudies[] - list of siteStudies to list in tooltip
-     */
-    function infoWindow(map, marker, siteName, siteStudies) {
-        var sortedStudies = siteStudies.sort((a, b) => {
-    if (a.study.protocol > b.study.protocol) {
-        return 1;
-    } else if (a.study.protocol < b.study.protocol) {
-        return -1;
-    } else {
-        return 0    }
-    });
-      let html =
-        `<div class='gm-tt'>
-              <div class='gm-tt-head'>${siteName}</div>
-              <div class='gg-tt-body'>`;
-      temp = [];
-      sortedStudies.forEach((siteStudy) => {
-        temp.push(`<span class='gg-tt-body-study' title="${siteStudy.study.name}"><a href="${siteStudy.study.website_url}">${siteStudy.study.protocol}</a></span>`)
-      });
-      html += temp.join(", ");
-      html += "</div></div>";
-      const iw = new google.maps.InfoWindow({
-        content: html,
-      });
-      google.maps.event.addListener(marker, "click", function() {
-        iw.open(map, marker);
-      });
-    }
-  }
---></script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC8eZN3isLsVAJ9BSnD6lLQ_XV7qInllHo&callback=buildMap"></script>
+<link rel="stylesheet" href="ext/cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="stylesheet" href="ext/site-map/site-map.css">
+<script src="ext/cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="ext/site-map/site-map.js"></script>
+<script>buildSiteMap("googleMap", "ext/wwwapi.rarediseasesnetwork.org/api/v1/consortia-CPIC.json");</script>
 <style><!--
   /** Google Maps Tooltip styling **/
   .gm-style-iw-t .gm-style-iw {
@@ -3446,7 +3221,6 @@ margin-left:2.5%;
 <script src="core/assets/vendor/once/once.min.js"></script>
 <script src="ext/static.addtoany.com/menu/page.js" defer></script>
 <script src="modules/composer/addtoany/js/addtoany.js"></script>
-<script src="https://www.skynettechnologies.com/accessibility/js/all-in-one-accessibility-js-widget-minify.js?colorcode=&amp;token=MULTI-AIOA8X8Q-XM85-NK87-E9FP-QAQW-LEBX&amp;t=2247306&amp;position=bottom_left.aioa-icon-type-1.aioa-default-icon.aioa-default-icon.regularsize.0.0.0......." id="aioa-adawidget"></script>
 <script src="themes/composer/bootstrap_barrio/js/barrio.js"></script>
 <script src="ext/cdn.jsdelivr.net/gh/jfeltkamp/cookiesjsr@1/dist/cookiesjsr-preloader.min.js" defer></script>
 <script src="modules/composer/cookies/modules/cookies_ga/js/cookies_ga.js"></script>
@@ -3456,7 +3230,6 @@ margin-left:2.5%;
 <script src="ext/cdnjs.cloudflare.com/ajax/libs/gsap/1.16.1/TweenMax.min.js"></script>
 <script src="ext/cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="themes/custom/rdcrn/js/ac.js"></script>
-<script src="themes/custom/rdcrn/js/allinone.email.js"></script>
 <script src="modules/composer/superfish/js/superfish.js"></script>
 <script src="libraries/drupal-superfish/superfish.js"></script>
 <script src="libraries/drupal-superfish/jquery.hoverIntent.minified.js"></script>
