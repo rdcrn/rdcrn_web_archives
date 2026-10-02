@@ -1,0 +1,278 @@
+/* ---------- Color Module Styles ----------- */
+
+body{
+  color: #6c6c6c;
+  border-top-color: #427aa9;
+}
+h1,
+.contact-us h1,
+.our-network h1,
+.about-us .about-container h1,
+.about-us h1,
+.fund-widget h1,
+.news-page h1,
+body h1{
+  color: #003660;
+}
+h2,
+.contact-us h2,
+.our-network h2,
+.about-us .about-container h2,
+.about-us h2,
+.fund-widget h2,
+.news-page h2,
+.path-search #main-wrapper .main-content h2,
+body h2{
+  color:#427aa9;
+}
+
+.whoweare .grid-row .content h3, 
+.blocked-image-with-text .grid-row .content h3,
+.list-box h3,
+.about-us .about-container h3,
+.about-us h3,
+.contact-us h3,
+.our-network h3,
+.fund-widget h3,
+.news-page h3,
+.path-search #main-wrapper .main-content h3,
+.team-box h3,
+body h3{
+  color: #ad0701;
+}
+h4,
+.fund-widget h4,
+.about-us .about-container h4,
+.about-us h4,
+.news-page h4,
+body h5{
+  color: #000000;
+}
+h5,
+.about-us .about-container h5,
+.news-page h5,
+.about-us h5,
+body h5{
+  color: #000000;
+}
+h6,
+.about-us .about-container h6,
+.about-us h6,
+.news-page h6,
+body h6{
+  color:#000000;
+}
+.whoweare .grid-row .content p,
+.about-us .about-container p,
+.about-us .about-container ul,
+.tro-accordian p,
+.our-network p,
+.lists ul.zebra-list-items li,
+.card-body p{
+  color: #6c6c6c;
+}
+#page,
+#main-wrapper,
+.region-primary-menu .menu-item a.is-active,
+.region-primary-menu .menu-item--active-trail a {
+  /* background: #427aa9; */
+}
+
+.tabs ul.primary li a.is-active {
+  background-color: #427aa9;
+}
+
+.tabs ul.primary li.is-active a {
+  background-color: #427aa9;
+  border-bottom-color: #427aa9;
+}
+
+#navbar-top {
+  background-color: #427aa9;
+}
+
+/* #navbar-main {
+  background-color: #427aa9;
+} */
+.banner-top{
+  background-color: #427aa9;
+}
+.main-accordion .main-accordion-item h3.accordion-header,
+ .main-accordion .accordion h3.accordion-header, 
+ .rcdrn-accordion .main-accordion-item h3.accordion-header, 
+ .rcdrn-accordion .accordion h3.accordion-header,
+ .para-accordion .main-accordion-item .accordion-header-bg, .research-study .sidebar-survey .status,
+ body .cookiesjsr--app .cookiesjsr-layer .cookiesjsr-layer--body .cookiesjsr-service-groups .cookiesjsr-service-group.active .cookiesjsr-service-group--tab,
+ body .cookiesjsr--app button.cookiesjsr-btn{
+   background-color: #427aa9 ;
+}
+.accordian-greens .tro-accordian .accordion .accordion-item .accordion-header button,
+.carousel,
+.clr-purple,
+.main-accordion .main-accordion-content .mini-acc-heading,
+.mini-acc-heading,
+.research-news .article-card-wrapper .article-card .details .--card-more a,
+.news-cards  .article-card-wrapper .article-card .details .--card-more a,
+.filter-wrapper .filter-sidebar .nav .nav-link,
+.individual-news h1,
+.pag-card, .pag-card a, .pag-card h2, .pag-card p,
+.research-study .cpic-left .title h1,
+.research-study .cpic-left .title h2,
+.research-study .cpic-left .title h3,
+.research-study .cpic-left .title h4,
+.research-study .cpic-left .title h5,
+.research-study .cpic-left .title h6,
+.research-study .cpic-left .body h1,
+.research-study .cpic-left .body h2,
+.research-study .cpic-left .body h3,
+.research-study .cpic-left .body h4,
+.research-study .cpic-left .body h5,
+.research-study .cpic-left .body h6,
+.research-study .cpic-left .title h1 a,
+.research-study .cpic-left .title h2 a,
+.research-study .cpic-left .title h3 a,
+.research-study .cpic-left .title h4 a,
+.research-study .cpic-left .title h5 a,
+.research-study .cpic-left .title h6 a,
+.research-study .cpic-left .body h1 a,
+.research-study .cpic-left .body h2 a,
+.research-study .cpic-left .body h3 a,
+.research-study .cpic-left .body h4 a,
+.research-study .cpic-left .body h5 a,
+.research-study .cpic-left .body h6 a,
+.research-study .sidebar-survey .total-enrollment,
+.shadow-anchor:hover,
+.spotlight-banner .content .body,
+.team-box a,
+.card-team .card .card-body strong,
+body .cookiesjsr--app,
+body .cookiesjsr--app button.cookiesjsr-btn.important,
+body .cookiesjsr--app .cookiesjsr-layer .cookiesjsr-layer--footer .cookiesjsr-layer--label-all,
+body .cookiesjsr--app .cookiesjsr-layer .cookiesjsr-layer--body .cookiesjsr-service-groups .cookiesjsr-service-group .cookiesjsr-service-group--tab,
+body .cookiesjsr--app .cookiesjsr-layer .cookiesjsr-layer--body .cookiesjsr-service-groups .cookiesjsr-service-group .cookiesjsr-service-group--content .cookiesjsr-service-group--services .cookiesjsr-service .cookiesjsr-service--description h3{
+  color: #427aa9;
+}
+.main-accordion .main-accordion-content .mini-acc-heading,
+.mini-acc-heading,
+body .cookiesjsr--app .cookiesjsr-layer,
+body .cookiesjsr--app .cookiesjsr-banner,
+body .cookiesjsr--app .cookiesjsr-layer .cookiesjsr-layer--body .cookiesjsr-service-groups .cookiesjsr-service-group .cookiesjsr-service-group--content,
+body .cookiesjsr--app .cookiesjsr-layer .cookiesjsr-layer--footer,
+body .cookiesjsr--app .cookiesjsr-layer header,
+body .cookiesjsr--app button.cookiesjsr-btn{
+  border-color: #427aa9;
+}
+::-webkit-scrollbar-thumb,
+.about-us .about-container table thead,
+.disease-card .accordion-item .accordion-header::before,
+.filter-wrapper .filter-sidebar .nav .nav-link.active:before, 
+.filter-wrapper .filter-sidebar .nav .nav-link.is-active:before,
+.accordian-greens .tro-accordian .accordion .accordion-item .accordion-header button::before{
+  background-color: #427aa9;
+}
+
+.bg-card,
+.news-page .last-article .details,
+.news-page .last-article .feature-image,
+.cpic-updates .field--type-viewsreference .last-article .details,
+.dark{
+  background-color: #427aa9;
+}
+a,
+.link,
+.about-us .about-container a,
+body .ui-menu .ui-menu-item a,
+.path-search #main-wrapper .main-content .node_search-results .list-group-item h3 a,
+body .cookiesjsr--app .cookiesjsr-links.links--row a{
+  color: #ad0701;
+}
+
+a:hover,
+a:focus,
+.link:hover,
+.link:focus,
+.about-us .about-container a:hover,
+.accordion-header a:hover div,
+body .ui-menu .ui-menu-item a:hover,
+.path-search #main-wrapper .main-content .node_search-results .list-group-item h3 a:hover,
+body .cookiesjsr--app .cookiesjsr-links.links--row a:hover{
+  color: #ad0701;
+}
+
+a:active,
+.link:active {
+  color: #fb2a22;
+}
+
+.page-item.active .page-link {
+  background-color: #ad0701;
+  border-color: #ad0701;
+}
+
+.page-link,
+.page-link:hover {
+  color: #ad0701;
+}
+
+.sidebar .block {
+  background-color: #ffffff;
+  border-color: #427aa9;
+}
+
+.btn-primary,
+.key-widget .--key-description,
+.key-widget .--key-description a,
+.steps .steps-container .date,
+.steps .steps-container::after,
+.timehead-content::after,
+ul.js-pager__items.pager .pager__item .button{
+  background-color: #ad0701;
+  border-color: #ad0701;
+  color: #ffffff;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.card .card-img-overlay a:hover,
+form#rdcrn-newsletter-subscribe-form button#edit-submit:hover,
+ul.js-pager__items.pager .pager__item .button:hover {
+  background-color: #003660;
+}
+
+.site-footer {
+  background: #427aa9;
+}
+
+.region-header,
+.region-header a,
+.region-header li a.is-active,
+.region-header .site-branding__text,
+.region-header .site-branding,
+.region-header .site-branding__text a,
+.region-header .site-branding a,
+.region-secondary-menu .menu-item a,
+.region-secondary-menu .menu-item a.is-active {
+  color: #ad0701;
+}
+.tro-accordian p a,
+.individual-news .news-body a,
+.spotlight-banner.news-page .content .body a:not(.btn-primary):not(a.btn-purple){
+  color: #ad0701;
+}
+
+
+/* ---------- Color Form ----------- */
+
+[dir="rtl"] .color-form .color-palette {
+  margin-left: 0;
+  margin-right: 20px;
+}
+
+[dir="rtl"] .color-form .form-item label {
+  float: right;
+}
+
+[dir="rtl"] .color-form .color-palette .lock {
+  right: -20px;
+  left: 0;
+}

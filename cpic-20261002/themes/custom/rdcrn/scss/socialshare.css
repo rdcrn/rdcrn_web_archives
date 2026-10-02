@@ -1,0 +1,137 @@
+.news-cards .article-card-wrapper .article-card .details #socialShare,
+.research-news .article-card-wrapper .article-card .details #socialShare{
+  background-image: url(../images/share-consortia-purple.svg);
+}
+#socialShare {
+  width: 100%;
+  margin-top: 0;
+  text-align: center;
+  background-image: url(../images/share-white.svg);
+  height: 4.4rem;
+  width: 4rem;
+  background-position: center;
+  background-size: 100%;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.socialToolBox {
+  display: flex;
+  justify-content: space-between;
+  min-width: 28rem;
+  width: 100%;
+}
+#socialShare a,
+#socialShare > .socialBox {
+  position: relative;
+  float: none;
+  display: inline-block;
+  color: #fff;
+  font-size: 20px;
+  padding: 5px;
+  background-color: transparent;
+  width: 40px;
+  height: 40px;
+  line-height: 30px;
+  text-align: center;
+  border-radius: 50%;
+}
+
+
+#socialShare  a {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+#socialShare > * > span {
+  display: block;
+  color: #fff;
+  text-align: center;
+  border-radius: 50%;
+  -webkit-transform: scale(1);
+  -moz-transform: scale(1);
+  transform: scale(1);
+  -webkit-transition: all .35s ease-in-out;
+  -moz-transition: all .35s ease-in-out;
+  transition: all .35s ease-in-out;
+}
+#socialShare > * > span:hover,
+#socialShare > .open > span {
+  -webkit-transform: scale(1.25);
+  -moz-transform: scale(1.25);
+  transform: scale(1.25);
+  -webkit-transition: all .15s ease-in-out;
+  -moz-transition: all .15s ease-in-out;
+  transition: all .15s ease-in-out;
+}
+span.fa.fa-share-alt::before {
+  content: none;
+}
+#socialGallery {
+  left: 50%;
+  margin: 0 auto 0;
+  position: absolute;
+  top: 25px;
+  transform: translate(-50%, 0);
+  visibility: hidden;
+  width: 100%;
+  z-index: 9;
+  transition: all 0.3s ease-in-out;
+}
+
+#socialGallery a {
+  visibility: hidden;
+  opacity: 0;
+  margin: 5px 2px;
+  background-color: rgba(0, 0, 0, 0.6);
+  position: relative;
+  top: 10px;
+  background-image:none;
+  transition: all 0.3s ease-in-out;
+}
+
+#socialGallery a > span {
+  position: relative;
+  top: 4px;
+  left: 4px;
+  border-radius: 50%;
+  -moz-border-radius: 50%;
+  -webkit-border-radius: 50%;
+}
+
+#socialShare .facebook:hover {
+  background: #3b5998 !important
+}
+
+#socialShare .twitter:hover {
+  background: #00aced !important
+}
+
+#socialShare .youtube:hover {
+  background: #0073b1 !important
+}
+@media (max-width: 1024px){
+  #socialShare a,
+  #socialShare > .socialBox {
+    font-size: 15px !important;
+    width: 30px !important;
+    height: 30px !important;
+    line-height: 20px !important;
+}
+}
+@media only screen and (min-width: 768px) and (max-width: 1024px) {
+  #socialGallery {
+    left: 27%;
+    top: 35px;
+    z-index: 9;
+  }
+}
+
+@media only screen and (max-width: 767px) {
+  #socialGallery {
+    left: 25%;
+    top: 35px;
+    z-index: 9;
+}
+}
+
+
