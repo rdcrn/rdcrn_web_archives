@@ -133,6 +133,7 @@ function date_ymd2mdy(val)
  * Registers a change to a field's value
  * @param {string} field 
  */
+let dataEntryFormValuesChangedFields = [];
 function setDataEntryFormValuesChanged(field) {
 	if (field == '') return;
 	// On data entry forms, check if the field will be hidden
@@ -142,6 +143,10 @@ function setDataEntryFormValuesChanged(field) {
 	var changeTrackingOff = dataEntryFormValuesChangedNeverTrack || $('tr[sq_id="'+field+'"]').hasClass('\@SAVE-PROMPT-EXEMPT');
 	if (!changeTrackingOff) {
 		dataEntryFormValuesChanged = true;
+	}
+	// Track the fields that have been changed
+	if (!in_array(field, dataEntryFormValuesChangedFields)) {
+		dataEntryFormValuesChangedFields.push(field);
 	}
 }
 // Notify user that contents of field theField are invalid.
@@ -531,8 +536,8 @@ function redcap_validate(ob, min, max, returntype, texttype, regexVal, returnFoc
 			msg = ($('#valtext_divs #valtext_time').length) ? $('#valtext_divs #valtext_time').text() : 'The value entered must be a time value in the following format HH:MM within the range 00:00-23:59 (e.g., 04:32 or 23:19).';
 		} else if ($('#valtext_divs #valtext_requiredformat').length && $('#valregex_divs #valregex-'+texttype).length) {
 			// Set default generic message for failure
-			msg += '<div class="fvallab">'+$('#valtext_divs #valtext_requiredformat').text()+' '
-				+  $('#valregex_divs #valregex-'+texttype).attr('label')+'</div>';
+			msg += '<div class="fvallab">'+escapeHtml($('#valtext_divs #valtext_requiredformat').text())+' '
+				+ escapeHtml($('#valregex_divs #valregex-'+texttype).attr('label'))+'</div>';
 		}
 		
 		// Because of strange syncronicity issues of back-to-back fields with validation, set pop-up content first here
@@ -1828,7 +1833,7 @@ function random(min, max) {
 $.fn.serializeObject = function()
 {
     var o = {};
-    var a = this.serializeArray();
+    var a = this.serializeArray(); // NOTE: jQuery's .serializeArray() normalizes line endings for form values to CRLF (\r\n)
     $.each(a, function() {
         if (o[this.name] !== undefined) {
             if (!o[this.name].push) {
@@ -2398,6 +2403,10 @@ function filter_tags(val)
 	var hasLT = (val.indexOf('<') > -1);
 	// Do replace of legitimate tags so we can weed out the ones that *look* legitimate to browsers (e.g., "<this is not real>")
 	if (hasLT) {
+		val = sanitizeHtmlAttributes(val);
+		// Match the server-side CSS checks before processing HTML tags.
+		val = sanitizeStyleTagBlocks(val);
+		val = sanitizeInlineStyleAttributes(val);
 		// Remove any HTML comments
 		if (val.indexOf('<!--') > -1) {
 			val = preg_replace('/<!--(.|\s)*?-->/', '', val);
@@ -2465,8 +2474,119 @@ function filter_tags(val)
 		} while (regex_raw.test(vals[i]));
 	}
 	val = vals.join(' ');
+	// Recheck after replacements/chunking, which can change CSS tokens.
+	if (hasLT) {
+		val = sanitizeStyleTagBlocks(val);
+		val = sanitizeInlineStyleAttributes(val);
+		val = sanitizeHtmlAttributes(val);
+	}
 	// Return text
 	return val;
+}
+
+// Review decoded attribute values, but preserve their original encoding in safe HTML.
+function sanitizeHtmlAttributes(text) {
+	var template = document.createElement('template');
+	return text.replace(/<([a-z][a-z0-9]*)\b((?:[^"'<>]|"[^"]*"|'[^']*')*)>/gi, function(tag, tagName, attributes) {
+		// Parse on a generic element inside inert template content. No event handlers
+		// execute or resources load, even for malformed or missing-space attributes.
+		template.innerHTML = '<div' + attributes + '></div>';
+		var element = template.content.firstElementChild;
+		var changed = false;
+		Array.from(element.attributes).forEach(function(attribute) {
+			var name = attribute.name.toLowerCase();
+			// Match the server-side blocked attributes, including all event handlers.
+			var unsafe = /^on[a-z]+$/.test(name) || /^(?:formaction|srcdoc|dynsrc|lowsrc)$/.test(name);
+			var urls = name === 'ping' ? attribute.value.split(/\s+/) : [attribute.value];
+			if (/^(?:href|xlink:href|src|action|data|background|ping|poster)$/.test(name)) {
+				unsafe = urls.some(function(url) {
+					// Browsers ignore ASCII whitespace/control characters when parsing schemes.
+					url = url.replace(/[\u0000-\u0020\u007f-\u009f]/g, '');
+					if (/^(?:javascript|vbscript):/i.test(url)) return true;
+					if (!/^data:/i.test(url)) return false;
+					// Retain embedded raster images, not HTML/SVG documents or other active data URLs.
+					return !(/^(?:src|poster)$/.test(name) && /^data:image\/(?:png|gif|jpeg|webp|bmp|avif);base64,/i.test(url));
+				});
+			}
+			if (unsafe) {
+				element.removeAttribute(attribute.name);
+				changed = true;
+			}
+		});
+		if (!changed) return tag;
+		attributes = Array.from(element.attributes).map(function(attribute) {
+			var value = attribute.value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+			return ' ' + attribute.name + '="' + value + '"';
+		}).join('');
+		return '<' + tagName + attributes + (/\/\s*>$/.test(tag) ? ' /' : '') + '>';
+	});
+}
+
+function decodeHtmlForSecurityReview(text) {
+	// A detached textarea decodes entities without parsing executable HTML. Escape
+	// literal angle brackets so input cannot terminate the textarea's text context.
+	var decoder = document.createElement('textarea');
+	decoder.innerHTML = String(text).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	return decoder.value;
+}
+
+// JavaScript counterparts of the CSS sanitizers in Config/init_functions.php.
+function sanitizeStyleTagBlocks(text) {
+	return text.replace(/<style\b((?:[^"'<>]|"[^"]*"|'[^']*')*)>([\s\S]*?)(?:<\/style\s*>|$)/gi, function(match, attributes, css) {
+		return '<style' + attributes + '>' + sanitizeCssContent(css) + '</style>';
+	});
+}
+
+function sanitizeInlineStyleAttributes(text) {
+	// Restrict attribute matching to tags, and include unquoted attribute values.
+	return text.replace(/<[a-z][a-z0-9]*\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi, function(tag) {
+		return tag.replace(/([\s/]+[^\s"'<>/=]+\s*=\s*)(?:(["'])([\s\S]*?)\2|([^\s"'=<>`]+))/g, function(match, attribute, quote, quotedCss, unquotedCss) {
+			if (!/^[\s/]+style\s*=/i.test(attribute)) return match;
+			var css = sanitizeCssContent(quote ? quotedCss : unquotedCss);
+			return css === '' ? '' : ' style=' + (quote || '') + css + (quote || '');
+		});
+	});
+}
+
+function sanitizeCssContent(css) {
+	css = String(css).replace(/\0/g, '');
+	if (css === '') return '';
+	var normalizedCss = decodeCssForSecurityReview(css);
+	var riskPattern = /expression\s*\(|url\s*\(|javascript\s*:|vbscript\s*:|@import|-moz-binding\s*:|behavior\s*:/i;
+	if (!riskPattern.test(normalizedCss)) return css.trim();
+
+	var executableCssPattern = /expression\s*\(|javascript\s*:|vbscript\s*:|-moz-binding\s*:|behavior\s*:/i;
+	if (executableCssPattern.test(normalizedCss)) return '';
+
+	css = css.replace(/\/\*[\s\S]*?\*\//g, '')
+		.replace(/@import\b[^;{}]*;?/gi, '')
+		.replace(/url\s*\(\s*(["']?)(.*?)\1\s*\)/gi, function(match, quote, url) {
+			url = url.trim();
+			var normalizedUrl = decodeCssForSecurityReview(url);
+			if (normalizedUrl === '' || /^(?:javascript|vbscript|data)\s*:/i.test(normalizedUrl)) {
+				return 'url(removed)';
+			}
+			return 'url(' + quote + url + quote + ')';
+		});
+
+	// Also reject unsafe URLs whose function name/parentheses were CSS-escaped.
+	var remainingUnsafeCssPattern = /expression\s*\(|javascript\s*:|vbscript\s*:|@import|-moz-binding\s*:|behavior\s*:|url\(["']?(?:data:|\))/i;
+	if (remainingUnsafeCssPattern.test(decodeCssForSecurityReview(css))) return '';
+	return css.trim();
+}
+
+function decodeCssForSecurityReview(css) {
+	css = decodeHtmlForSecurityReview(css).replace(/\0/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+	css = css.replace(/\\(?:\r\n|[\n\r\f])/g, '');
+	css = css.replace(/\\([0-9a-f]{1,6}(?:\r\n|\s)?|[^\n\r\f])/gi, function(match, token) {
+		if (/^[0-9a-f]{1,6}\s*$/i.test(token)) {
+			var codePoint = parseInt(token.trim(), 16);
+			return codePoint === 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)
+				? '\ufffd' : String.fromCodePoint(codePoint);
+		}
+		return token;
+	});
+	return css.replace(/\s+/g, '').toLowerCase();
 }
 
 function replaceAllowedTags(val, ltReplacement, gtReplacement) {
@@ -2618,7 +2738,7 @@ function delete_project(this_pid,ob,user,status,delete_now) {
   if(AUTOMATE_ALL == 0 && user === 0 && status !== 0){
 	if (confirm("REQUEST PROJECT BE DELETED?\nAre you really sure that you want a REDCap administrator to delete this project for you?")) {
 		showProgress(1);
-		$.get(app_path_webroot+'ProjectGeneral/notifications.php', { pid: pid, type: 'delete_project' },
+		$.post(app_path_webroot+'ProjectGeneral/notifications.php?pid='+pid+'&type=delete_project', {},
 		  function(data) {
 			showProgress(0);
 			if (data != '') {
@@ -2750,150 +2870,38 @@ function currentTime(type,showSeconds,returnUTC) {
 	else return curr_hour+':'+curr_min+(showSeconds ? ':'+curr_sec : '');
 }
 
-function a11yDatepicker() {
-	const $dpDiv = $('#ui-datepicker-div');
-	if (!$dpDiv[0]) return;
-	if ($.datepicker && !$dpDiv.data('a11y-focus-patched')) {
-		$dpDiv.data('a11y-focus-patched', true); // Prevents running these very same Datepicker updates several times over
-
-		const originalUpdate = $.datepicker._updateDatepicker;
-
-		$.datepicker._updateDatepicker = function (inst) {
-			// Initial rendering (Note: this call runs not just on first datepicker rendering but also whenever datepicker is updated/redrawn)
-			originalUpdate.call(this, inst);
-
-			// After rendering move focus into the calendar
-			setTimeout(function () {
-				if (!inst || !inst.dpDiv) return;
-				const $dp = inst.dpDiv;
-				if (!$dp.is(':visible')) return;
-
-				// Remember attached input to restore focus on close
-				if (inst.input && inst.input[0]) {
-					$dp.data('a11y-return-focus-el', inst.input[0]);
-				}
-
-				// Identify as a dialog-like popup
-				$dp.attr({
-					role: 'dialog',
-					'aria-modal': 'false',
-					'aria-label': lang.survey_1625
-				});
-
-				// Make date links speak full dates (not just “30” for example)
-				const year = inst.drawYear;
-				const monthIndex = inst.drawMonth; // 0-11
-				const monthNames = $.datepicker._defaults.monthNames;
-				const monthName = monthNames[monthIndex] || '';
-
-				$dp.find('a.ui-state-default').each(function () {
-					const $a = $(this);
-					const day = parseInt($a.text(), 10);
-					// Full spoken label
-					$a.attr('aria-label', `${monthName} ${day}, ${year}`);
-				});
-
-				// Prefer selected date, else today, else first available date
-				let $focusTarget = $dp.find('.ui-datepicker-current-day a').first();
-				if (!$focusTarget.length) $focusTarget = $dp.find('.ui-datepicker-today a').first();
-				if (!$focusTarget.length) $focusTarget = $dp.find('a.ui-state-default').first();
-
-				if ($focusTarget.length) {
-					function tryFocusAnchor($a) {
-						if (!$a.length) return;
-						const a = $a[0];
-						a.setAttribute('tabindex', '0');
-						a.focus();
-					}
-					setTimeout(() => tryFocusAnchor($focusTarget), 50); // Slight delay to avoid overriding by other internal jQuery UI operations
-				}
-			}, 0);
-		};
-
-		function disableShowOnFocusIfPresent(el, restoreDelayMs = 80) {
-			if (!el) return;
-			const $el = $(el);
-			let originalShowOn = null;
-			try {
-				originalShowOn = $el.datepicker('option', 'showOn');
-			} catch (e) {}
-			if (!originalShowOn) return;
-			// Temporarily disable "focus" opening by switching to button-only
-			$el.datepicker('option', 'showOn', 'button');
-			// Re-enable original behavior after a delay (focus should be restored within this delay in order to avoid triggering `onfocus` behavior)
-			setTimeout(() => {
-				$el.datepicker('option', 'showOn', originalShowOn);
-			}, restoreDelayMs);
-		}
-
-		function restoreFocusIfClosed() {
-			if ($dpDiv.length && !$dpDiv.is(':visible')) {
-				const el = $dpDiv.data('a11y-return-focus-el');
-				if (el) {
-					const originalOnFocus = el.onfocus;
-					el.onfocus = null;
-					disableShowOnFocusIfPresent(el);
-					setTimeout(() => {
-						el.blur(); // Blur before focus to "loudly" signal the triggered focus to the screen reader
-						setTimeout(() => {
-							$(el).trigger('focus');
-							el.onfocus = originalOnFocus;
-						}, 25);
-					}, 50); // Should be less than `restoreDelayMs`
-				}
-			}
-		}
-		// Watch for when datepicker is closed (via style or class update - e.g. style="display:none;")
-		const dpEl = $dpDiv[0];
-		let wasVisible = $dpDiv.is(':visible');
-		const obs = new MutationObserver(() => {
-			const isVisible = $dpDiv.is(':visible');
-			// Only react when visibility actually changes
-			if (isVisible !== wasVisible) {
-				wasVisible = isVisible;
-				if (!isVisible) {
-					restoreFocusIfClosed();
-				}
-			}
-		});
-		obs.observe(dpEl, {
-			attributes: true,
-			attributeFilter: ['style', 'class']
-		});
-	}
-	$(document).on('keydown', '#ui-datepicker-div', function (e) {
-		if (e.key === 'Escape') {
-			e.preventDefault();
-
-			const $dp = $('#ui-datepicker-div');
-
-			// Hide datepicker
-			$.datepicker._hideDatepicker();
-
-			// Restore focus to originating input
-			const returnEl = $dp.data('a11y-return-focus-el');
-			if (returnEl) {
-				setTimeout(() => $(returnEl).trigger('focus'), 10);
-			}
-		}
-	});
+function a11yDatepicker(fallbackLabel) {
+	// Make jQuery UI datepicker/timepicker trigger images keyboard accessible.
 	$('input.hasDatepicker').each(function () {
 		const $input = $(this);
 		const $trigger = $input.parent().find('.ui-datepicker-trigger');
-		if (!$trigger.length) return;
-		// To improve accessibility for keyboard users, let's make jQuery <img> trigger act like a button
+
+		if (!$trigger.length || $trigger.data('tabIndexSet')) return;
+
+		const resolvedLabel = fallbackLabel || window.lang.calendar_widget_choosedatehint || 'Choose date';
+
 		if ($trigger.is('img')) {
+			const altText = ($trigger.attr('alt') || '').trim();
+
 			$trigger.attr({
 				role: 'button',
-				tabindex: '0',
-			})
-			.off('keydown.a11yDateTrigger')
-			.on('keydown.a11yDateTrigger', function (e) {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					this.click();
-				}
+				tabindex: '0'
 			});
+
+			// Only set title when the image has no meaningful alt text.
+			if (!altText) {
+				$trigger.attr('title', resolvedLabel);
+			}
+
+			$trigger
+				.data('tabIndexSet', true)
+				.off('keydown.a11yDateTrigger')
+				.on('keydown.a11yDateTrigger', function (e) {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						this.click();
+					}
+				});
 		}
 	});
 }
@@ -3005,6 +3013,7 @@ function initDatePickers() {
 		closeText: window.lang.calendar_widget_done,
 		buttonText: window.lang.calendar_widget_choosetimehint,
 		onClose: function(dateText, inst) {
+			console.log(window.lang.calendar_widget_choosetimehint)
 			$('#'+$(inst).attr('id')).focus();
 			setDataEntryFormValuesChanged($(this).attr('name'));
 			try {
@@ -3046,6 +3055,9 @@ function initDatePickers() {
 		buttonImage: app_path_images+'timer.png',
 		buttonImageOnly: true
 	});
+
+	a11yDatepicker(window.lang.calendar_widget_choosetimehint || 'Choose time');
+
 	// Pop-up datetime-picker initialization
 	$('.datetime_ymd').datetimepicker({
 		currentText: window.lang.form_renderer_29,
@@ -3219,6 +3231,9 @@ function initDatePickers() {
 		buttonImageOnly: true,
 		constrainInput: false
 	});
+
+	a11yDatepicker();
+
 	// If user clicks on divs inside the datepicker, make sure the cursor stays in the field if has hardtyped validation via @FORCE-MINMAX
 	$('.hasDatepicker, .date_ymd, .date_mdy, .date_dmy, .datetime_ymd, .datetime_mdy, .datetime_dmy, .datetime_seconds_ymd, .datetime_seconds_mdy, .datetime_seconds_dmy').focus(function(){
 		pickerOpenerField = $(this).prop('name');
@@ -3239,8 +3254,6 @@ function initDatePickers() {
 			}, 10); // Must be delayed by a certain amount to work
 		});
 	}
-	// Accessibility considerations for the datepicker
-	// a11yDatepicker();
 }
 
 // Initialize all jQuery UI buttons
@@ -3326,6 +3339,7 @@ function exportPageAsPDF(selector, filename, selectorHideElements)
 	// Load the JSPDF file
 	if (!loadedJSPDF) {
 		loadJS(app_path_webroot+"Resources/js/Libraries/html2canvas.min.js");
+		loadJS(app_path_webroot+"Resources/js/Libraries/polyfills.umd.js");
 		loadJS(app_path_webroot+"Resources/js/Libraries/jspdf.umd.min.js");
 		loadJS(app_path_webroot+"Resources/js/ExportPageAsPDF.js");
 		loadedJSPDF = true;
@@ -3435,7 +3449,7 @@ function isUrl(s) {
 }
 
 // Test if a URL is reachable
-function testUrl(url,request_method,evalJsOnFail,useConfigCheck=false) {
+function testUrl(url,request_method,evalJsOnFail,useConfigCheck=false,projectId=null) {
 	if (url == null) return false;
 	if (request_method == null) request_method = 'get';
 	const errorMsg = "Unfortunately, the REDCap server was not able to reach the web address you provided and thus was not able to verify it as valid.<div style='font-size:13px;padding:20px 0 5px;color:#C00000;'>Not verifiable: &nbsp;<b>"+url+"</b></div>";
@@ -3449,6 +3463,7 @@ function testUrl(url,request_method,evalJsOnFail,useConfigCheck=false) {
 	const params = {
 		url: url,
 	}
+	if (projectId !== null) params.pid = projectId;
 	params[useConfigCheck ? 'type' : 'request_method'] = request_method;
 	const thisAjax = $.post(endpoint, params, function(data) {
 		showProgress(0,0);
@@ -3836,7 +3851,8 @@ function dirname(path) {
 
 // Equivalent of htmlspecialchars() in PHP
 function htmlspecialchars(text) {
-	if (text == null) return '';
+	if (text === null || typeof text === 'undefined') return '';
+	text = String(text);
 	return String(text)
 		.replace(/&/g, "&amp;")
 		.replace(/</g, "&lt;")
@@ -3895,6 +3911,8 @@ function ends_with(haystack, needle) {
 
 // Escape HTML (similar to PHP's htmlspecialchars)
 function escapeHtml(text) {
+	if (text === null || typeof text === 'undefined') return '';
+	text = String(text);
 	var map = {
 		'&': '&amp;',
 		'<': '&lt;',
@@ -4469,6 +4487,7 @@ function upload_rich_text_attachment_dialog(file)
 	var fd = new FormData();
 	fd.append('file', file);
 	if (typeof redcap_csrf_token != 'undefined') fd.append('redcap_csrf_token', redcap_csrf_token);
+	fd.append('rich_text_upload_manifest', window.redcap_rich_text_upload_manifest || '');
 	// Make sure file size is not too large
 	if (file.size >= maxUploadSizeAttachment) {
 		simpleDialog(lang.sendit_03+' (<b>'+roundup(file.size/1024/1024,1)+' MB</b>)'+lang.period+' '+lang.sendit_04+' '+roundup(maxUploadSizeAttachment/1024/1024)+' MB '+lang.sendit_05, lang.docs_81);
@@ -4490,10 +4509,10 @@ function upload_rich_text_attachment_dialog(file)
 			showProgress(0, 700);
 			if (response == '0') {
 				// Error
-				simpleDialog('<span class="fs12">'+RCView.tt('docs_82')+' <code class="fs13">'+file.name+'</code></span>', RCView.getLangStringByKey('docs_81'));
+				simpleDialog('<span class="fs12">'+RCView.tt('docs_82')+' <code class="fs13">'+escapeHtml(file.name)+'</code></span>', RCView.getLangStringByKey('docs_81'));
 			} else if (isUrl(response)) {
 				// Success
-				tinymce.activeEditor.insertContent("<p><a href='"+response+"' style='text-decoration:underline;'>"+file.name+"</a></p><p> </p>");
+				tinymce.activeEditor.insertContent("<p><a href='"+response+"' style='text-decoration:underline;'>"+escapeHtml(file.name)+"</a></p><p> </p>");
 			} else {
 				// Specific error returned
 				simpleDialog(response, RCView.getLangStringByKey('docs_81'));
@@ -4501,7 +4520,7 @@ function upload_rich_text_attachment_dialog(file)
 		},
 		error: function (response) {
 			// Error
-			simpleDialog('<span class="fs12">'+RCView.tt('docs_82')+' <code class="fs13">'+file.name+'</code></span>', RCView.getLangStringByKey('docs_81'));
+			simpleDialog('<span class="fs12">'+RCView.tt('docs_82')+' <code class="fs13">'+escapeHtml(file.name)+'</code></span>', RCView.getLangStringByKey('docs_81'));
 		}
 	});
 }
@@ -4538,6 +4557,7 @@ const rich_text_image_upload_handler = (blobInfo, progress) => new Promise((reso
 	};
 	formData = new FormData();
 	if (typeof redcap_csrf_token != 'undefined') formData.append('redcap_csrf_token', redcap_csrf_token);
+	formData.append('rich_text_image_upload_manifest', window.redcap_rich_text_image_upload_manifest || '');
 	formData.append('file', blobInfo.blob(), blobInfo.filename());
 	xhr.send(formData);
 });
@@ -5230,8 +5250,11 @@ function getCurrentDate(valType,returnUTC) {
 	}
 }
 
-// Enable fixed table headers for event grid
 var rcDataTable;
+/**
+ * Initialize fixed headers and columns while preserving the source table's measured layout.
+ * @param {boolean} ordering Whether column sorting is enabled (default: false).
+ */
 function enableFixedTableHdrs(table_id,ordering,searching,searchDom,headerOffset,initCompleteJS,forcePreventFloatingHdrs) {
 	var num_cols = $('#'+table_id+' th').length;
 	if (!$('#'+table_id).length || !num_cols) return;
@@ -5247,16 +5270,10 @@ function enableFixedTableHdrs(table_id,ordering,searching,searchDom,headerOffset
 	var table_width  = $('#'+table_id).width();
 	var window_height = $(window).height();
 	var table_height  = $('#'+table_id).height();
-	floatFirstCol = (table_width > window_width*0.9);
-	floatFirstRow = (table_height > window_height*0.9);
-	// If table is too big, then don't perform fixed header or column
-	var IEfudge = isIE ? (IEv < 10 ? 3 : 2) : 1; // Set fudge factor for IE, which is weak
-	if (floatFirstRow && num_cols > (3000/IEfudge)) {
-		floatFirstRow = false;
-	}
-	if (floatFirstCol && (num_cols > (2000/IEfudge) || (num_cols > (500/IEfudge) && num_cols*$('#'+table_id+' tr').length > (200000/IEfudge)))) {
-		floatFirstCol = false;
-	}
+	// floatFirstCol = (table_width > window_width*0.9);
+	// floatFirstRow = (table_height > window_height*0.9);
+	floatFirstCol = true;
+	floatFirstRow = true;
 	if (forcePreventFloatingHdrs) {
 		floatFirstRow = floatFirstCol = false;
 	}
@@ -5278,7 +5295,8 @@ function enableFixedTableHdrs(table_id,ordering,searching,searchDom,headerOffset
 	if (!forceDataTable && !floatFirstCol && !floatFirstRow && !searching && !ordering) return;
 	// Set table params
 	var dataTableParams = {
-		"autoWidth": false,
+		// FixedHeader clears measured widths during scroll transitions when autoWidth is disabled.
+		"autoWidth": true,
 		"processing": true,
 		"paging": false,
 		"info": false,
@@ -5297,7 +5315,8 @@ function enableFixedTableHdrs(table_id,ordering,searching,searchDom,headerOffset
 	if (floatFirstCol) {
 		$.extend(dataTableParams, {
 			"fixedColumns": true,
-			scrollY: (floatFirstRow ? round(window_height*0.7) : table_height)+"px",
+			//scrollY: (floatFirstRow ? round(window_height*0.7) : table_height)+"px",
+			scrollY: '',
 			scrollX: true
 		});
 	}
@@ -5309,12 +5328,22 @@ function enableFixedTableHdrs(table_id,ordering,searching,searchDom,headerOffset
 		});
 	}
 	try {
+		const table = document.getElementById(table_id);
+		const automaticLayoutClass = 'rc-fixed-table-headers-auto';
+		// Reinitialization must start from markup sizes, rather than our previous rendered widths.
+		const originalHeaderStyles = new Map(Array.from(table.tHead.querySelectorAll('th, td'), header =>
+			[header, { width: header.style.width, minWidth: header.style.minWidth }]));
+		// FixedHeader clones table classes, but otherwise forces fixed layout and can clip spanning labels.
+		if ((floatFirstCol || floatFirstRow) && window.getComputedStyle(table).tableLayout === 'auto') {
+			table.classList.add(automaticLayoutClass);
+		}
 		// Enable the data table
 		rcDataTable = $('#'+table_id).DataTable(dataTableParams);
+		if (floatFirstCol || floatFirstRow) synchronizeFixedTableHeaderWidths(rcDataTable, automaticLayoutClass, originalHeaderStyles);
 		// Set width of scrollable area if we're fixing the first column
-		if (floatFirstCol) {
-			$('.dataTables_scroll').width( window_width-($('#west').length ? $('#west').width() : 0)-50 );
-		}
+		// if (floatFirstCol) {
+		// 	$('.dataTables_scroll').width( window_width-($('#west').length ? $('#west').width() : 0)-50 );
+		// }
 		// DataTables prevents Backspace key from being used in search, so change type to "text"
 		if (searching) {
 			$('#'+table_id+'_filter.dataTables_filter input[type="search"]').css({'background-color':'#fff','border':'1px solid #aaa'}).attr('type','text').prop('placeholder','Search');
@@ -5346,6 +5375,47 @@ function enableFixedTableHdrs(table_id,ordering,searching,searchDom,headerOffset
 			$('#'+table_id+' tbody tr:even').addClass('odd');
 		}
 	}
+}
+
+/** Match logical column headers to rendered body cells without rounding browser subpixel widths. */
+function synchronizeFixedTableHeaderWidths(dataTable, automaticLayoutClass, originalHeaderStyles) {
+	const table = dataTable.table().node();
+	const sizingNamespace = '.rcFixedTableHeaderSizing';
+	const synchronizeWidths = () => {
+		const measuredWidths = [];
+		// Read all geometry before writing styles; large dashboards can contain hundreds of columns.
+		dataTable.columns(':visible', { search: 'applied' }).every(function() {
+			const header = this.header();
+			if (!header || header.colSpan !== 1) return;
+			let bodyWidth = 0;
+			for (const cell of Array.from(this.nodes())) {
+				if (!cell || !cell.isConnected || cell.colSpan !== 1) continue;
+				bodyWidth = cell.getBoundingClientRect().width;
+				if (bodyWidth > 0) break;
+			}
+			// Hidden rows and empty search results have no usable per-column geometry.
+			if (bodyWidth <= 0) return;
+			const styles = window.getComputedStyle(header);
+			const paddingAndBorders = styles.boxSizing === 'border-box' ? 0 :
+				[styles.paddingLeft, styles.paddingRight, styles.borderLeftWidth, styles.borderRightWidth]
+					.reduce((total, value) => total + (parseFloat(value) || 0), 0);
+			measuredWidths.push({ header, width: `${Math.max(0, bodyWidth - paddingAndBorders)}px` });
+		});
+		for (const { header, width } of measuredWidths) {
+			header.style.width = width;
+			header.style.minWidth = width;
+		}
+	};
+	synchronizeWidths();
+	dataTable.on('column-sizing.dt' + sizingNamespace + ' draw.dt' + sizingNamespace, synchronizeWidths);
+	dataTable.on('destroy.dt' + sizingNamespace, () => {
+		dataTable.off(sizingNamespace);
+		for (const [header, styles] of originalHeaderStyles) {
+			header.style.width = styles.width;
+			header.style.minWidth = styles.minWidth;
+		}
+		table.classList.remove(automaticLayoutClass);
+	});
 }
 
 // Render link to disable/re-enable DataTable
