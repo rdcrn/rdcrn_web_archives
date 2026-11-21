@@ -2533,6 +2533,8 @@ function decodeHtmlForSecurityReview(text) {
 // JavaScript counterparts of the CSS sanitizers in Config/init_functions.php.
 function sanitizeStyleTagBlocks(text) {
 	return text.replace(/<style\b((?:[^"'<>]|"[^"]*"|'[^']*')*)>([\s\S]*?)(?:<\/style\s*>|$)/gi, function(match, attributes, css) {
+		// Style blocks treat entities as literal CSS, so restore child combinators.
+		css = css.replace(/&(?:gt|#0*62|#x0*3e);/gi, '>');
 		return '<style' + attributes + '>' + sanitizeCssContent(css) + '</style>';
 	});
 }
@@ -4261,14 +4263,16 @@ function initTinyMCEglobal(selector, compact, readonly, enable_ai_btn) {
 		height = 100;
 	}
 	height += 115; // Add height to compensate for top/bottom toolbars
-	if (isMobileDevice) {
-		var toolbar1 = toolbar1defaultsMobile;
-		var toolbar2 = toolbar2defaultsMobile;
-	} else if (!compact) {
-		var toolbar1 = toolbar1defaults;
-		var toolbar2 = toolbar2defaults;
-	}
 	try {
+		// A narrow or zoomed desktop window should still get the desktop toolbar.
+		var deviceType = tinymce.Env.deviceType;
+		if (deviceType.isPhone() || deviceType.isTablet()) {
+			toolbar1 = toolbar1defaultsMobile;
+			toolbar2 = toolbar2defaultsMobile;
+		} else if (!compact) {
+			toolbar1 = toolbar1defaults;
+			toolbar2 = toolbar2defaults;
+		}
 		tinymce.init({
 			height: height,
 			license_key: 'gpl',
